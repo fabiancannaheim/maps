@@ -1,248 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <title>My Map</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Map</title>
-    <style>
-
-        * {
-            font-family: Arial, sans-serif;
-        }
-
-        html, body{
-            min-height: 100%
-        }
-
-        body{
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .canton {
-            stroke: lightgray;
-        }
-
-        .canton:hover {
-            opacity: .5;
-            cursor: pointer;
-        }
-        .canton-boundary {
-            fill: none;
-            stroke: #fff;
-            stroke-linejoin: round;
-        }
-
-        #title{
-            font-size: 28px;
-            text-transform: uppercase;
-            margin-top: 10px;
-        }
-        #description a{
-            text-decoration: none;
-            color: #9b4d02;
-            text-align: center;
-        }
-        #mode {
-            border-radius: 10px;
-            padding: .5% 5%;
-        }
-
-        .slidecontainer {
-            width: 60%; /* Width of the outside container */
-            display: flex;
-            align-items: center;
-        }
-
-        .slidecontainer > label {
-            font-weight: bold;
-        }
-
-        .slidecontainer > label:first-child {
-            margin-right: 2%;
-        }
-
-        .slidecontainer > label:last-child {
-            margin-left: 2%;
-        }
-
-        /* The slider itself */
-        .slider {
-            -webkit-appearance: none;  /* Override default CSS styles */
-            appearance: none;
-            width: 100%; /* Full-width */
-            height: 25px; /* Specified height */
-            background: #d3d3d3; /* Grey background */
-            outline: none; /* Remove outline */
-            opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
-            -webkit-transition: .2s; /* 0.2 seconds transition on hover */
-            transition: opacity .2s;
-            border-radius: 10px;
-        }
-
-        /* Mouse-over effects */
-        .slider:hover {
-            opacity: 1; /* Fully shown on mouse-over */
-        }
-
-        /* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
-        .slider::-webkit-slider-thumb {
-            -webkit-appearance: none; /* Override default look */
-            appearance: none;
-            width: 25px; /* Set a specific slider handle width */
-            height: 25px; /* Slider handle height */
-            background: #04AA6D; /* Green background */
-            cursor: pointer; /* Cursor on hover */
-        }
-
-        .slider::-moz-range-thumb {
-            width: 25px; /* Set a specific slider handle width */
-            height: 25px; /* Slider handle height */
-            background: #04AA6D; /* Green background */
-            cursor: pointer; /* Cursor on hover */
-        }
-
-
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-<h2 id='title'>Cars in Switzerland</h2>
-<label for="mode">Mode</label>
-<select id="mode"></select>
+<h2 id='title'>New Vehicle Fleet in Switzerland</h2>
+<div id="mode-container">
+    <label for="mode"></label>
+    <select id="mode"></select>
+</div>
+<div id='tooltip'></div>
 <svg></svg>
 <div class="slidecontainer">
     <label for="time">2014</label>
     <input type="range" min="2014" max="2021" value="2014" class="slider" id="time">
     <label for="time">2021</label>
 </div>
-<br><br>
-<div id='description'>This map shows statistical data for Switzerland regarding cars... Source: <a href='https://opendata.swiss/de/dataset/kennzahlen-neuwagenflotte'>opendata.swiss</a></div>
-<br>
+<div id='description'>This map shows statistical data for Switzerland regarding cars...
+    Source: <a href='https://opendata.swiss/de/dataset/kennzahlen-neuwagenflotte'>opendata.swiss</a>
+</div>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://d3js.org/topojson.v1.min.js"></script>
-<script>
-
-    let width = 1000, height = 600
-
-    let svg = d3.select("svg").attr("width", width).attr("height", height);
-
-    let projection =  d3.geoAlbers()
-                        .rotate([0, 0])
-                        .center([8.3, 46.8])
-                        .scale(12500)
-                        .translate([width / 2, height / 2])
-                        .precision(.1);
-
-    let path = d3.geoPath().projection(projection);
-
-    let carsMap = {
-        t1: 'Number of new personal cars',
-        t2: 'Share of four-wheel drive vehicles',
-        t3: 'Average fuel consumption',
-        t4: 'Average CO2 emissions',
-        t5: 'Average empty weight',
-        t6: 'Average car prices',
-    }
-
-    let modeSelect = document.getElementById("mode")
-    Object.entries(carsMap).forEach(mode => {
-        let node = document.createElement("option")
-        node.value = mode[0]
-        node.innerText = mode[1]
-        modeSelect.appendChild(node)
-    })
-
-    let timeSlider = document.getElementById("time")
-
-    let cantons, cars, population, carRanges
-
-    const drawMap = (mode, year) => {
-
-        let key = `y${year}${mode}`
-
-        svg.html(null)
-
-        svg.selectAll("path")
-            .data(cantons)
-            .enter()
-            .append("path")
-            .attr("d", path)
-            .attr("class", "canton")
-            .attr("fill", (i) => {
-
-                let cantonId
-                let cantonCode = i.id
-                Object.entries(population).forEach(entry => {
-                    if (entry[1].code === cantonCode) {
-                        cantonId = entry[0]
-                    }
-                })
-
-                let value = cars[cantonId - 1][key]
-                let pop = population[cantonId]['population'][year]
-
-                let colors =  d3.scaleLinear()
-                                .domain([carRanges[key]['min'], carRanges[key]['max']])
-                                .range(["#11481d", "#c7f8d1"])
-
-                return colors(value)
-
-            });
-
-    }
-
-    const getRanges = () => {
-        carRanges = {}
-        cars.forEach((e) => {
-            for (const [key, value] of Object.entries(e)) {
-                if (key !== "Kanton") {
-                    if (carRanges[key] === undefined) {
-                        carRanges[key] = {
-                            'min': Number.MAX_SAFE_INTEGER,
-                            'max': Number.MIN_SAFE_INTEGER
-                        }
-                    }
-                    let floatValue = parseFloat(value)
-                    let floatMin = parseFloat(carRanges[key]['min'])
-                    let floatMax = parseFloat(carRanges[key]['max'])
-                    carRanges[key]['min'] = floatValue < floatMin ? floatValue : floatMin
-                    carRanges[key]['max'] = floatValue > floatMax ? floatValue : floatMax
-                }
-            }
-        })
-    }
-
-    d3.json("assets/switzerland.json").then((cantonData) => {
-        cantons = topojson.feature(cantonData, cantonData.objects.cantons).features;
-    }).then(() => {
-        d3.csv("assets/cars.csv").then((carData) => {
-            cars = carData
-        }).then(() => {
-            d3.json("assets/pop_ch.json").then((populationData) => {
-                population = populationData
-            }).then(() => {
-                getRanges()
-                drawMap('t1', 2014)
-            })
-        })
-    });
-
-    modeSelect.addEventListener('change', function() {
-        drawMap(this.value, timeSlider.value)
-    })
-
-    timeSlider.addEventListener('change', function() {
-        drawMap(modeSelect.value, this.value)
-    })
-
-
-
-
-
-</script>
+<script type="text/javascript" src="script.js"></script>
 </body>
-
 </html>
